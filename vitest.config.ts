@@ -5,15 +5,15 @@ import { viteStaticCopy as copy } from "vite-plugin-static-copy";
 export default defineConfig({
 	test: {
 		projects: [
-			// {
-			// 	test: {
-			// 		name: "node",
-			// 		environment: "node",
-			// 		include: ["**/*.test.ts?(x)"],
-			// 		exclude: ["**/*.contract.test.ts?(x)", "node_modules"],
-			// 		globals: true,
-			// 	},
-			// },
+			{
+				test: {
+					name: "node",
+					environment: "node",
+					include: ["**/*.test.ts?(x)"],
+					exclude: ["**/*.contract.test.ts?(x)", "node_modules"],
+					globals: true,
+				},
+			},
 
 			{
 				plugins: [

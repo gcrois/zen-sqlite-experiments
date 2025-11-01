@@ -1,11 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { fs as zenFS } from "@zenfs/core";
-// import nodeFS from "node:fs";
 
 import type SQLite from "wa-sqlite";
-// import { resolve } from "node:path";
-// import { readFile } from "node:fs/promises";
-import { pathToFileURL } from "node:url";
 import { MemoryVFS } from "./memory-vfs.js";
 import { NodeVFS } from "./node-vfs.js";
 
@@ -40,8 +36,6 @@ describe("SQLite WASM", () => {
 
 		const module = await SQLiteFactory({
 			wasmBinary,
-			// locateFile: (p: string) =>
-			// 	pathToFileURL(resolve("node_modules/wa-sqlite/dist", p)).href,
 		});
 
 		sqlite3 = sqliteImport.Factory(module);
@@ -95,25 +89,4 @@ describe("SQLite WASM", () => {
 
 		await sqlite3.close(db);
 	});
-
-	// describe("File System", () => {
-	// 	it("should create, write, read, and delete a file", async () => {
-	// 		const filePath = "/testfile.txt";
-	// 		const fileContent = "Hello, ZenFS!";
-
-	// 		await fs.promises.writeFile(filePath, fileContent);
-	// 		const readContent = await fs.promises.readFile(filePath, "utf-8");
-	// 		expect(readContent).toBe(fileContent);
-
-	// 		await fs.promises.unlink(filePath);
-
-	// 		let fileExists = true;
-	// 		try {
-	// 			await fs.promises.access(filePath);
-	// 		} catch {
-	// 			fileExists = false;
-	// 		}
-	// 		expect(fileExists).toBe(false);
-	// 	});
-	// });
 });

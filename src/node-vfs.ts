@@ -1,9 +1,4 @@
-// Portable FS-backed VFS for wa-sqlite (works with Node fs OR @zenfs/core).
-// - No hard dependency on node:path or node:crypto.
-// - FS is injected; only uses methods present on the given fs.
-// - Relative filenames are resolved against an injected `base` (default "/") using URL logic.
-// - Read/Write shims support both Node's (fd, buf, off, len, pos) and ZenFS's (fd, view, {offset,len,position}) signatures.
-// - A single DEBUG toggle controls console logging in this file.
+// Adapted from https://github.com/tndrle/node-sqlite3-wasm/blob/main/src/vfs.js
 
 import type { fs as ZenFS } from "@zenfs/core";
 import type nodeFs from "node:fs";
@@ -46,8 +41,6 @@ type FSLike = typeof ZenFS | typeof nodeFs;
 type PortableVFSOptions = {
 	fs: FSLike; // filesystem implementation
 	base?: string; // base directory for relative names (default "/")
-	randomBytes?: RandomFn; // custom randomness provider
-	dirLocks?: boolean; // try to use directory lock files (default true if fs has mkdir/rmdir)
 };
 
 // Default POSIX-ish flag fallbacks if fs.constants not provided.
@@ -217,9 +210,8 @@ export class NodeVFS extends FacadeVFS {
 			F_OK: c.F_OK ?? DEFAULT_CONST.F_OK,
 		};
 		this.base = options.base ?? "/";
-		this.randomBytes = options.randomBytes ?? defaultRandom;
-		this.useDirLocks =
-			options.dirLocks ?? (!!this.fs.mkdirSync && !!this.fs.rmdirSync);
+		this.randomBytes = defaultRandom;
+		this.useDirLocks = true;
 
 		dlog("constructed", {
 			name,
