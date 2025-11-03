@@ -6,7 +6,7 @@ import { FacadeVFS } from "wa-sqlite/src/FacadeVFS.js";
 import * as VFS from "wa-sqlite/src/VFS.js";
 
 // ---- single global toggle ----------------------------------------------------
-const DEBUG: boolean = true || (globalThis as any).NODE_VFS_DEBUG === "1";
+const DEBUG: boolean = false || (globalThis as any).NODE_VFS_DEBUG === "1";
 
 const dlog = (...args: unknown[]) => {
 	if (DEBUG) console.log("[PortableVFS]", ...args);
@@ -175,7 +175,7 @@ function writeSyncPortable(
 // ===================================================================================
 
 export class NodeVFS extends FacadeVFS {
-	name = "portable";
+	name = "node-vfs";
 	private mapIdToOpen: Map<number, OpenFile> = new Map();
 	private readonly fs: FSLike;
 	private readonly C: Required<typeof DEFAULT_CONST>;

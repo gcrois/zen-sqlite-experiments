@@ -4,42 +4,20 @@ import { fs as zenFS } from "@zenfs/core";
 import type SQLite from "wa-sqlite";
 import { MemoryVFS } from "./memory-vfs.js";
 import { NodeVFS } from "./node-vfs.js";
+import { initSQLite } from "./utils.js";
 
 const SQLITE_ROW = 100;
 
 describe("SQLite WASM", () => {
-	let sqliteImport: typeof SQLite;
+	let waSqliteImport: typeof SQLite;
+    let waSqliteModule: any;
 	let sqlite3: ReturnType<typeof SQLite.Factory>;
-	let vfs: MemoryVFS;
+	let vfs: MemoryVFS | NodeVFS;
 
 	beforeAll(async () => {
-		sqliteImport = await import("wa-sqlite");
-		const { default: SQLiteFactory } = await import(
-			"wa-sqlite/dist/wa-sqlite.mjs"
-		);
+		({ sqlite3, waSqliteImport, waSqliteModule } = await initSQLite());
 
-        let wasmPath: string;
-        let wasmBinary: Uint8Array;
-
-        // Load WASM binary depending on environment
-        if (typeof process !== "undefined" && process?.versions?.node) {
-            // Node.js environment
-            const { resolve } = await import("node:path");
-            const { readFile } = await import("node:fs/promises");
-            wasmPath = resolve("node_modules/wa-sqlite/dist/wa-sqlite.wasm");
-            wasmBinary = await readFile(wasmPath);
-        } else {
-            // Browser environment
-            const response = await fetch("wa-sqlite.wasm");
-            wasmBinary = new Uint8Array(await response.arrayBuffer());
-        }
-
-		const module = await SQLiteFactory({
-			wasmBinary,
-		});
-
-		sqlite3 = sqliteImport.Factory(module);
-		vfs = await NodeVFS.create("node", module, { fs: zenFS });
+		vfs = await NodeVFS.create("node", waSqliteModule, { fs: zenFS });
 		sqlite3.vfs_register(vfs, true);
 	});
 
@@ -50,13 +28,13 @@ describe("SQLite WASM", () => {
 	it("should create an in-memory database and run a simple query", async () => {
 		const db = await sqlite3.open_v2(
 			"/Users/gc/Projects/zenfs/test.db",
-			sqliteImport.SQLITE_OPEN_READWRITE |
-				sqliteImport.SQLITE_OPEN_CREATE,
+			waSqliteImport.SQLITE_OPEN_READWRITE |
+				waSqliteImport.SQLITE_OPEN_CREATE,
 			vfs.name
 		);
 
-        // drop table if exists to ensure test idempotency
-        await sqlite3.exec(db, "DROP TABLE IF EXISTS test;");
+		// drop table if exists to ensure test idempotency
+		await sqlite3.exec(db, "DROP TABLE IF EXISTS test;");
 		await sqlite3.exec(
 			db,
 			"CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT);"
@@ -72,7 +50,7 @@ describe("SQLite WASM", () => {
 			"SELECT id, name FROM test ORDER BY id;"
 		)) {
 			const colNames = sqlite3.column_names(stmt);
-			while ((await sqlite3.step(stmt)) === SQLITE_ROW) {
+			while ((await sqlite3.step(stmt)) === waSqliteImport.SQLITE_ROW) {
 				const row: Record<string, unknown> = {};
 				for (let i = 0; i < colNames.length; i++) {
 					row[colNames[i]] = sqlite3.column(stmt, i);
