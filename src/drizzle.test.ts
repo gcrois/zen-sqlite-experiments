@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterEach } from "vitest";
 import * as VFS from "wa-sqlite/src/VFS.js";
 import { fs as zenFS } from "@zenfs/core";
 
@@ -14,8 +14,11 @@ import {
 } from "drizzle-orm/sqlite-core";
 import { drizzleFromWaSQLite } from "./wa-sqlite-proxy.js";
 import { asc } from "drizzle-orm";
+import { tests } from "./sqlite.common.js";
 
 let db: BaseSQLiteDatabase<"async" | "sync", any, Record<string, never>>;
+let client: number;
+let dbFile: string;
 let waSqliteImport: typeof SQLite;
 let waSqliteModule: any;
 let sqlite3: ReturnType<typeof SQLite.Factory>;
@@ -26,23 +29,34 @@ beforeAll(async () => {
 
 	vfs = await NodeVFS.create("node", waSqliteModule, { fs: zenFS });
 	sqlite3.vfs_register(vfs, true);
+});
 
-	const client = await sqlite3.open_v2(
-		"/Users/gc/Projects/zenfs/test.db",
+beforeEach(async (ctx) => {
+    dbFile = `/Users/gc/Projects/zenfs/dbs/${ctx.task.id}.db`;
+    console.log('Creating database file:', dbFile);
+
+    client = await sqlite3.open_v2(
+		dbFile,
 		waSqliteImport.SQLITE_OPEN_READWRITE |
 			waSqliteImport.SQLITE_OPEN_CREATE,
 		vfs.name
 	);
 
-	db = drizzleFromWaSQLite(waSqliteImport, sqlite3, client);
+    db = drizzleFromWaSQLite(waSqliteImport, sqlite3, client);
+
+    ctx.sqlite = {
+        db
+    }
+});
+
+afterEach(async () => {
+    await sqlite3.close(client);
+
+    // delete the database file
+    zenFS.unlink(dbFile);
 });
 
 describe("Drizzle SQLite Proxy", () => {
-	// do nothing for now
-	it("should work", () => {
-		expect(true).toBe(true);
-	});
-
 	it("should run a simple query", async () => {
 		let test_table = sqliteTable("test_drizzle", {
 			id: integer("id").primaryKey(),
@@ -79,6 +93,8 @@ describe("Drizzle SQLite Proxy", () => {
 			{ id: 2, name: "Bob", email: "bob@example.com", metadata: { age: 25 } },
 		]);
 	});
+
+    tests();
 });
 
 // beforeAll(async () => {

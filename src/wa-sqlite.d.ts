@@ -1,5 +1,3 @@
-// import * as VFS from "wa-sqlite/src/VFS.js";
-
 declare module "wa-sqlite/src/FacadeVFS.js" {
 	import type * as VFS from "./VFS.js";
 
