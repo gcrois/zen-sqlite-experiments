@@ -1,19 +1,19 @@
 import { drizzle, type RemoteCallback } from "drizzle-orm/sqlite-proxy";
 import type SQLite from "wa-sqlite";
 
-type Cell = string | number | bigint | null;
+type Cell = string | number | bigint | Uint8Array | null;
 type Row = Cell[];
 
+// Drizzle will use `columns` (when provided) to map Row -> object
 type ProxyResult =
-	| { rows: Row[] } // "all" | "values" | "run"
-	| { rows: Row };  // "get"
+	| { rows: Row[]; columns?: string[] } // "all" | "values" | "run"
+	| { rows: Row; columns?: string[] }; // "get"
 
 export function drizzleFromWaSQLite(
 	waSqliteImport: typeof SQLite,
 	sqlite3: ReturnType<typeof SQLite.Factory>,
 	db: number
 ) {
-	/* Binds JS values to SQLite parameters (1-based) */
 	function bindParams(stmt: number, params: unknown[]) {
 		for (let i = 0; i < params.length; i++) {
 			const ix = i + 1;
@@ -27,83 +27,102 @@ export function drizzleFromWaSQLite(
 					: sqlite3.bind_double(stmt, ix, v);
 			} else if (typeof v === "string") {
 				sqlite3.bind_text(stmt, ix, v);
+			} else if (typeof v === "bigint") {
+                sqlite3.bind_int64(stmt, ix, v);
 			} else if (v instanceof Uint8Array) {
 				sqlite3.bind_blob(stmt, ix, v);
-			} else if (typeof v === "bigint") {
-				// Store bigint as int64 if possible
-				sqlite3.bind_int64
-					? sqlite3.bind_int64(stmt, ix, v)
-					: sqlite3.bind_text(stmt, ix, v.toString());
 			} else if (typeof v === "boolean") {
 				sqlite3.bind_int(stmt, ix, v ? 1 : 0);
-			} else {
-				// Fallback: JSON
+			} else if (Array.isArray(v) || typeof v === "object") {
+				// JSON — store as TEXT; blob-json callers can pass Uint8Array instead
 				sqlite3.bind_text(stmt, ix, JSON.stringify(v));
+			} else {
+				sqlite3.bind_text(stmt, ix, String(v));
 			}
 		}
 	}
 
-	/* Convert SQLite value to a Cell that preserves numeric types */
+	// Preserve native types from wa-sqlite
 	function toCell(value: unknown): Cell {
 		if (value === undefined) return null;
 		if (value === null) return null;
 		if (typeof value === "string") return value;
-		if (typeof value === "number") return value;   // keep numbers
-		if (typeof value === "bigint") return value;   // keep bigints
-		if (typeof value === "boolean") return value ? 1 : 0; // normalize bools
-		if (value instanceof Uint8Array) {
-			// hex-encode blobs to remain JSON-serializable
-			return Array.from(value).map((b) => b.toString(16).padStart(2, "0")).join("");
-		}
-		// Anything else → stringify to be safe
+		if (typeof value === "number") return value;
+		if (typeof value === "bigint") return value;
+		if (value instanceof Uint8Array) return new Uint8Array(value);
 		return String(value);
 	}
 
-	/* Collect rows preserving native numeric/bigint/null types */
-	async function execCollectRows(sql: string, params: unknown[]): Promise<Row[]> {
+	type Collected = { rows: Row[]; columns?: string[] };
+
+	async function execCollect(
+		sql: string,
+		params: unknown[]
+	): Promise<Collected> {
 		const out: Row[] = [];
+		let columns: string[] | undefined;
 
 		for await (const stmt of sqlite3.statements(db, sql)) {
 			if (params?.length) bindParams(stmt, params);
 
 			const cols = sqlite3.column_count(stmt);
 
-			// Non-SELECT: step to completion and continue
+			// Keep column names for raw SQL mapping (first statement that returns columns wins)
+			if (
+				cols > 0 &&
+				columns === undefined &&
+				"column_names" in sqlite3
+			) {
+				columns = sqlite3.column_names(stmt) as string[];
+			}
+
+			// Non-SELECT: just step it to completion
 			if (cols === 0) {
-				while ((await sqlite3.step(stmt)) === waSqliteImport.SQLITE_ROW) { /* no-op */ }
+				while (
+					(await sqlite3.step(stmt)) === waSqliteImport.SQLITE_ROW
+				) {
+					/* no-op */
+				}
 				continue;
 			}
 
 			while ((await sqlite3.step(stmt)) === waSqliteImport.SQLITE_ROW) {
 				const row: Row = new Array(cols);
-				for (let i = 0; i < cols; i++) {
+				for (let i = 0; i < cols; i++)
 					row[i] = toCell(sqlite3.column(stmt, i));
-				}
 				out.push(row);
 			}
-			// No finalize: iterator scopes statement lifetime
 		}
 
-		return out;
+		return { rows: out, columns };
 	}
 
-	const callback: RemoteCallback = async (sql, params, method): Promise<ProxyResult> => {
+	const callback: RemoteCallback = async (
+		sql,
+		params,
+		method
+	): Promise<ProxyResult> => {
+		// optional: emulate unsupported UPDATE/DELETE … ORDER BY … LIMIT (see below)
 		switch (method) {
 			case "run": {
-				await execCollectRows(sql, params);
-				return { rows: [] };
+				await execCollect(sql, params);
+				return { rows: [], columns: [] };
 			}
 			case "get": {
-				const rows = await execCollectRows(sql, params);
-				return { rows: rows[0] ?? [] };
+				const { rows, columns } = await execCollect(sql, params);
+				// Drizzle treats “no row” correctly when rows.length === 0
+				// For “get” we must return a single Row, so only return the first row when present.
+				return rows.length
+					? { rows: rows[0], columns }
+					: { rows: undefined };
 			}
 			case "values":
 			case "all": {
-				const rows = await execCollectRows(sql, params);
-				return { rows };
+				const { rows, columns } = await execCollect(sql, params);
+				return { rows, columns };
 			}
 			default: {
-				(method satisfies never);
+				method satisfies never;
 				throw new Error(`Unsupported method: ${method}`);
 			}
 		}

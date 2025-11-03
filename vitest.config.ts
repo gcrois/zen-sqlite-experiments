@@ -6,6 +6,7 @@ export default defineConfig({
 	test: {
 		projects: [
 			{
+                
 				test: {
 					name: "node",
 					environment: "node",

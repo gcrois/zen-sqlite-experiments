@@ -6,8 +6,6 @@ import { MemoryVFS } from "./memory-vfs.js";
 import { NodeVFS } from "./node-vfs.js";
 import { initSQLite } from "./utils.js";
 
-const SQLITE_ROW = 100;
-
 describe("SQLite WASM", () => {
 	let waSqliteImport: typeof SQLite;
     let waSqliteModule: any;

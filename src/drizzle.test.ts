@@ -33,7 +33,6 @@ beforeAll(async () => {
 
 beforeEach(async (ctx) => {
     dbFile = `/Users/gc/Projects/zenfs/dbs/${ctx.task.id}.db`;
-    console.log('Creating database file:', dbFile);
 
     client = await sqlite3.open_v2(
 		dbFile,
@@ -96,27 +95,3 @@ describe("Drizzle SQLite Proxy", () => {
 
     tests();
 });
-
-// beforeAll(async () => {
-// 	const dbPath = process.env['SQLITE_DB_PATH'] ?? ':memory:';
-// 	client = new Database(dbPath);
-// 	serverSimulator = new ServerSimulator(client);
-
-// 	const callback = async (sql: string, params: any[], method: string) => {
-// 		try {
-// 			const rows = await serverSimulator.query(sql, params, method);
-
-// 			if (rows.error !== undefined) {
-// 				throw new Error(rows.error);
-// 			}
-
-// 			return { rows: rows.data };
-// 		} catch (e: any) {
-// 			console.error('Error from sqlite proxy server:', e.response?.data ?? e.message);
-// 			throw e;
-// 		}
-// 	};
-// 	db = proxyDrizzle(callback);
-// 	cachedDb = proxyDrizzle(callback, { cache: new TestCache() });
-// 	dbGlobalCached = proxyDrizzle(callback, { cache: new TestGlobalCache() });
-// });
