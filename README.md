@@ -1,0 +1,1 @@
+`src/drizzle.test.ts` contains basic usage of ZenFS + WA-SQlite wrapped with Drizzle ORM.

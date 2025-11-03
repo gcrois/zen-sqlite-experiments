@@ -6,7 +6,6 @@ export default defineConfig({
 	test: {
 		projects: [
 			{
-                
 				test: {
 					name: "node",
 					environment: "node",
@@ -15,30 +14,23 @@ export default defineConfig({
 					globals: true,
 				},
 			},
-
 			{
 				plugins: [
 					copy({
 						targets: [
 							{
-								src: "./node_modules/@sqlite.org/sqlite-wasm/sqlite-wasm/jswasm/sqlite3.wasm",
-								dest: "",
-							},
-                            {
 								src: "./node_modules/wa-sqlite/dist/wa-sqlite.wasm",
 								dest: "",
 							},
 						],
 					}),
 				],
-
 				server: {
 					headers: {
 						"Cross-Origin-Embedder-Policy": "require-corp",
 						"Cross-Origin-Opener-Policy": "same-origin",
 					},
 				},
-
 				test: {
 					name: "browser",
 					include: ["**/*.test.ts?(x)"],
@@ -48,11 +40,11 @@ export default defineConfig({
 						enabled: true,
 						provider: playwright(),
 						headless: true,
-                        screenshotFailures: false,
+						screenshotFailures: false,
 						instances: [
 							{ browser: "chromium" },
-							// { browser: "firefox" },
-							// { browser: "webkit" },
+							{ browser: "firefox" },
+							{ browser: "webkit" },
 						],
 					},
 				},

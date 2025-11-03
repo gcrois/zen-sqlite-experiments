@@ -4,7 +4,6 @@ import type SQLite from "wa-sqlite";
 type Cell = string | number | bigint | Uint8Array | null;
 type Row = Cell[];
 
-// Drizzle will use `columns` (when provided) to map Row -> object
 type ProxyResult =
 	| { rows: Row[]; columns?: string[] } // "all" | "values" | "run"
 	| { rows: Row; columns?: string[] }; // "get"
@@ -28,13 +27,13 @@ export function drizzleFromWaSQLite(
 			} else if (typeof v === "string") {
 				sqlite3.bind_text(stmt, ix, v);
 			} else if (typeof v === "bigint") {
-                sqlite3.bind_int64(stmt, ix, v);
+				sqlite3.bind_int64(stmt, ix, v);
 			} else if (v instanceof Uint8Array) {
 				sqlite3.bind_blob(stmt, ix, v);
 			} else if (typeof v === "boolean") {
 				sqlite3.bind_int(stmt, ix, v ? 1 : 0);
 			} else if (Array.isArray(v) || typeof v === "object") {
-				// JSON — store as TEXT; blob-json callers can pass Uint8Array instead
+				// JSON: store text; callers wanting blob-json should pass Uint8Array
 				sqlite3.bind_text(stmt, ix, JSON.stringify(v));
 			} else {
 				sqlite3.bind_text(stmt, ix, String(v));
@@ -42,14 +41,23 @@ export function drizzleFromWaSQLite(
 		}
 	}
 
-	// Preserve native types from wa-sqlite
 	function toCell(value: unknown): Cell {
-		if (value === undefined) return null;
-		if (value === null) return null;
-		if (typeof value === "string") return value;
-		if (typeof value === "number") return value;
-		if (typeof value === "bigint") return value;
-		if (value instanceof Uint8Array) return new Uint8Array(value);
+		if (value === undefined || value === null) return null;
+		if (
+			typeof value === "string" ||
+			typeof value === "number" ||
+			typeof value === "bigint"
+		)
+			return value as any;
+		// Ensure plain Uint8Array for strict equality (avoid Node Buffer metadata)
+		if (
+			value instanceof Uint8Array ||
+			(typeof value === "object" &&
+				value !== null &&
+				(value as any).constructor?.name === "Buffer")
+		) {
+			return new Uint8Array(value as Uint8Array);
+		}
 		return String(value);
 	}
 
@@ -64,20 +72,19 @@ export function drizzleFromWaSQLite(
 
 		for await (const stmt of sqlite3.statements(db, sql)) {
 			if (params?.length) bindParams(stmt, params);
+			const colCount = sqlite3.column_count(stmt);
 
-			const cols = sqlite3.column_count(stmt);
-
-			// Keep column names for raw SQL mapping (first statement that returns columns wins)
-			if (
-				cols > 0 &&
-				columns === undefined &&
-				"column_names" in sqlite3
-			) {
-				columns = sqlite3.column_names(stmt) as string[];
+			// Always compute column names so Drizzle maps rows → objects
+			if (colCount > 0 && columns === undefined) {
+				const names: string[] = [];
+				for (let i = 0; i < colCount; i++) {
+					// wa-sqlite exposes column_name(stmt, i)
+					names.push(sqlite3.column_name(stmt, i) as string);
+				}
+				columns = names;
 			}
 
-			// Non-SELECT: just step it to completion
-			if (cols === 0) {
+			if (colCount === 0) {
 				while (
 					(await sqlite3.step(stmt)) === waSqliteImport.SQLITE_ROW
 				) {
@@ -87,8 +94,8 @@ export function drizzleFromWaSQLite(
 			}
 
 			while ((await sqlite3.step(stmt)) === waSqliteImport.SQLITE_ROW) {
-				const row: Row = new Array(cols);
-				for (let i = 0; i < cols; i++)
+				const row: Row = new Array(colCount);
+				for (let i = 0; i < colCount; i++)
 					row[i] = toCell(sqlite3.column(stmt, i));
 				out.push(row);
 			}
@@ -97,28 +104,39 @@ export function drizzleFromWaSQLite(
 		return { rows: out, columns };
 	}
 
+	function isUpdateOrDeleteWithOrderLimit(sql: string): boolean {
+		// We intentionally don't support these; surface a clear error.
+		const s = sql.replace(/\s+/g, " ").toLowerCase();
+		const isUpdDel = s.startsWith("update ") || s.startsWith("delete ");
+		return isUpdDel && s.includes(" order by ") && s.includes(" limit ");
+	}
+
 	const callback: RemoteCallback = async (
 		sql,
 		params,
 		method
 	): Promise<ProxyResult> => {
-		// optional: emulate unsupported UPDATE/DELETE … ORDER BY … LIMIT (see below)
+		if (isUpdateOrDeleteWithOrderLimit(sql)) {
+			throw new Error(
+				"Unsupported SQL: UPDATE/DELETE with ORDER BY and LIMIT. " +
+					"This SQLite build lacks SQLITE_ENABLE_UPDATE_DELETE_LIMIT and this adapter does not emulate it."
+			);
+		}
+
 		switch (method) {
 			case "run": {
-				await execCollect(sql, params);
+				await execCollect(sql, params ?? []);
 				return { rows: [], columns: [] };
 			}
 			case "get": {
-				const { rows, columns } = await execCollect(sql, params);
-				// Drizzle treats “no row” correctly when rows.length === 0
-				// For “get” we must return a single Row, so only return the first row when present.
+				const { rows, columns } = await execCollect(sql, params ?? []);
 				return rows.length
 					? { rows: rows[0], columns }
-					: { rows: undefined };
+					: ({ rows: undefined as unknown as Row, columns } as any);
 			}
 			case "values":
 			case "all": {
-				const { rows, columns } = await execCollect(sql, params);
+				const { rows, columns } = await execCollect(sql, params ?? []);
 				return { rows, columns };
 			}
 			default: {

@@ -3287,7 +3287,7 @@ export function tests() {
 				int: 1,
 				bool: true,
 				bigint: 5044565289845416380n,
-				buffer: Buffer.from([
+				buffer: Uint8Array.from([
 					0x44,
 					0x65,
 					0x73,
@@ -3336,7 +3336,7 @@ export function tests() {
 				time: Date | null;
 				timeMs: Date | null;
 				bigint: bigint | null;
-				buffer: Buffer | null;
+				buffer: Uint8Array | null;
 				json: unknown;
 				numeric: string | null;
 				numericNum: number | null;
@@ -3353,7 +3353,7 @@ export function tests() {
 					time: new Date('2025-03-12T01:32:41.000Z'),
 					timeMs: new Date('2025-03-12T01:32:41.623Z'),
 					bigint: 5044565289845416380n,
-					buffer: Buffer.from([
+					buffer: Uint8Array.from([
 						0x44,
 						0x65,
 						0x73,

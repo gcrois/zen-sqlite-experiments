@@ -1,13 +1,13 @@
 {
-	"name": "khaki",
+	"name": "zenfs-drizzle",
 	"version": "1.0.0",
 	"description": "",
 	"main": "index.js",
-	"scripts": {},
 	"keywords": [],
 	"author": "",
 	"license": "ISC",
 	"devDependencies": {
+		"tap-markdown": "^1.2.1",
 		"typescript": "5.9.3"
 	},
 	"prettier": {
@@ -16,9 +16,16 @@
 		"tabWidth": 4,
 		"useTabs": true
 	},
+	"scripts": {
+		"test": "vitest"
+	},
+	"exports": {
+		".": {
+			"import": "./index.ts"
+		}
+	},
 	"packageManager": "pnpm@10.14.0+sha512.ad27a79641b49c3e481a16a805baa71817a04bbe06a38d17e60e2eaee83f6a146c6a688125f5792e48dd5ba30e7da52a5cda4c3992b9ccf333f9ce223af84748",
 	"dependencies": {
-		"@sqlite.org/sqlite-wasm": "3.50.4-build1",
 		"@types/node": "^24.9.2",
 		"@vitest/browser": "^4.0.5",
 		"@vitest/browser-playwright": "^4.0.5",
@@ -30,6 +37,6 @@
 		"vite": "^7.1.12",
 		"vite-plugin-static-copy": "^3.1.4",
 		"vitest": "^4.0.5",
-		"wa-sqlite": "git+https://github.com/rhashimoto/wa-sqlite.git"
+		"wa-sqlite": "git+https://github.com/rhashimoto/wa-sqlite.git#a3b1324ed5a57928141b02eb3204421e1164ed53"
 	}
 }

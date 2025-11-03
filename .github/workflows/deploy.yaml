@@ -1,0 +1,62 @@
+# vim: ts=4 sw=4 et
+name: Build+Test CD
+
+on:
+    # push:
+    # pull_request:
+    workflow_dispatch:
+
+permissions:
+    contents: read
+    packages: read
+    deployments: write
+    checks: write
+    pull-requests: write
+
+concurrency:
+    group: ${{ github.event_name }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - &checkout
+              uses: actions/checkout@v4
+
+            - &install-pnpm
+              name: Install pnpm
+              uses: pnpm/action-setup@v4
+              with:
+                  run_install: false
+
+            - &install-node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 24
+                  cache: pnpm
+
+            - &pnpm-install
+              name: Install dependencies
+              run: pnpm install
+
+            - run: pnpm test:report
+
+            # - name: Summarize JUnit to Markdown
+            #   uses: mikepenz/action-junit-report@v4
+            #   with:
+            #       report_paths: vitest-junit.xml
+            #       include_passed: true
+            #       detailed_summary: true
+
+            # - name: Update README section
+            #   uses: JasonEtco/readme-box@v2
+            #   with:
+            #     path: vitest-summary.md
+            #     section: VITEST
+                  
+            # - name: Commit README if changed
+            #   run: |
+            #       git config user.name "github-actions[bot]"
+            #       git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            #       git diff --quiet || { git add README.md vitest-summary.md && git commit -m "docs: update test summary" && git push; }

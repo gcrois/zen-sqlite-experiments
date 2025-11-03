@@ -1,0 +1,1 @@
+export { drizzleFromWaSQLite } from "./wa-sqlite-proxy.js";
